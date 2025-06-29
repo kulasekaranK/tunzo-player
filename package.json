@@ -1,0 +1,22 @@
+{
+  "name": "tunzo-player",
+  "version": "1.0.6",
+  "description": "A music playback service for Angular and Ionic apps with native audio control support.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "music",
+    "player",
+    "angular",
+    "ionic",
+    "audio"
+  ],
+  "author": "Kulasekaran",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

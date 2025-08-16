@@ -16,14 +16,27 @@ export class Player {
       this.selectedQuality = quality;
     }
   
+    /** Call this once on user gesture to unlock audio in WebView */
+    static unlockAudio() {
+      this.audio.src = '';
+      this.audio.load();
+      this.audio.play().catch(() => {});
+    }
+  
     static play(song: any, index: number = 0) {
       if (!song || !song.downloadUrl) return;
   
       this.currentSong = song;
       this.currentIndex = index;
       this.audio.src = song.downloadUrl[this.selectedQuality]?.url || '';
-      this.audio.play();
-      this.isPlaying = true;
+      this.audio.load(); // Ensure audio is loaded before play
+      this.audio.play().then(() => {
+        this.isPlaying = true;
+      }).catch((err) => {
+        // Handle play errors (autoplay, WebView restrictions)
+        this.isPlaying = false;
+        console.warn('Audio play failed:', err);
+      });
   
       // Set duration
       this.audio.onloadedmetadata = () => {
@@ -149,4 +162,3 @@ export class Player {
       return this.playlist;
     }
   }
-  

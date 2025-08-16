@@ -16,7 +16,13 @@
         "player",
         "angular",
         "ionic",
-        "audio"
+        "audio",
+        "native",
+        "playback",
+        "service",
+        "tunzo",
+        "tunzo-player"
+
     ],
     "author": "Kulasekaran",
     "license": "MIT",

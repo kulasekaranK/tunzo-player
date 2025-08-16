@@ -7,6 +7,12 @@ class Player {
         this.playlist = playlist;
         this.selectedQuality = quality;
     }
+    /** Call this once on user gesture to unlock audio in WebView */
+    static unlockAudio() {
+        this.audio.src = '';
+        this.audio.load();
+        this.audio.play().catch(() => { });
+    }
     static play(song, index = 0) {
         var _a;
         if (!song || !song.downloadUrl)
@@ -14,8 +20,14 @@ class Player {
         this.currentSong = song;
         this.currentIndex = index;
         this.audio.src = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
-        this.audio.play();
-        this.isPlaying = true;
+        this.audio.load(); // Ensure audio is loaded before play
+        this.audio.play().then(() => {
+            this.isPlaying = true;
+        }).catch((err) => {
+            // Handle play errors (autoplay, WebView restrictions)
+            this.isPlaying = false;
+            console.warn('Audio play failed:', err);
+        });
         // Set duration
         this.audio.onloadedmetadata = () => {
             this.duration = this.audio.duration;

@@ -11,6 +11,8 @@ export declare class Player {
     private static selectedQuality;
     /** Initialize with playlist and quality */
     static initialize(playlist: any[], quality?: number): void;
+    /** Call this once on user gesture to unlock audio in WebView */
+    static unlockAudio(): void;
     static play(song: any, index?: number): void;
     static pause(): void;
     static resume(): void;

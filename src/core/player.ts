@@ -1,3 +1,5 @@
+import { BehaviorSubject } from 'rxjs';
+
 export class Player {
     private static audio = new Audio();
     private static currentSong: any = null;
@@ -7,6 +9,7 @@ export class Player {
     private static duration = 0;
     private static isShuffle = true;
     private static queue: any[] = [];
+      static queue$ = new BehaviorSubject<any[]>([]);
     private static playlist: any[] = [];
     private static selectedQuality = 3;
   
@@ -112,20 +115,27 @@ export class Player {
     static toggleShuffle() {
       this.isShuffle = !this.isShuffle;
     }
+
+    static getShuffleStatus(): boolean {
+      return this.isShuffle;
+    }
   
     static addToQueue(song: any) {
       if (!this.queue.some(q => q.id === song.id)) {
         this.queue.push(song);
+         this.queue$.next([...this.queue]);
       }
     }
   
     static removeFromQueue(index: number) {
       this.queue.splice(index, 1);
+       this.queue$.next([...this.queue]);
     }
   
     static reorderQueue(from: number, to: number) {
       const item = this.queue.splice(from, 1)[0];
       this.queue.splice(to, 0, item);
+       this.queue$.next([...this.queue]);
     }
   
     static getCurrentTime(): number {

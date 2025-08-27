@@ -20,12 +20,16 @@ class Player {
             return;
         this.currentSong = song;
         this.currentIndex = index;
-        this.audio.src = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
+        let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
+        // 🚀 Auto-convert http → https
+        if (url.startsWith('http://')) {
+            url = url.replace('http://', 'https://');
+        }
+        this.audio.src = url;
         this.audio.load(); // Ensure audio is loaded before play
         this.audio.play().then(() => {
             this.isPlaying = true;
         }).catch((err) => {
-            // Handle play errors (autoplay, WebView restrictions)
             this.isPlaying = false;
             console.warn('Audio play failed:', err);
         });
@@ -40,6 +44,10 @@ class Player {
         // Auto-play next song
         this.audio.onended = () => {
             this.autoNext();
+        };
+        // Catch errors
+        this.audio.onerror = (e) => {
+            console.error('Audio error:', this.audio.error, e);
         };
     }
     static pause() {
@@ -61,6 +69,7 @@ class Player {
     static next() {
         if (this.queue.length > 0) {
             const nextQueued = this.queue.shift();
+            this.queue$.next([...this.queue]);
             const index = this.playlist.findIndex(s => s.id === nextQueued.id);
             this.play(nextQueued, index);
         }

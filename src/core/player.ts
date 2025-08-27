@@ -91,6 +91,7 @@ export class Player {
   static next() {
     if (this.queue.length > 0) {
       const nextQueued = this.queue.shift();
+      this.queue$.next([...this.queue]);
       const index = this.playlist.findIndex(s => s.id === nextQueued.id);
       this.play(nextQueued, index);
     } else if (this.isShuffle) {

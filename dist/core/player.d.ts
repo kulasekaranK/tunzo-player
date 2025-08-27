@@ -1,3 +1,4 @@
+import { BehaviorSubject } from 'rxjs';
 export declare class Player {
     private static audio;
     private static currentSong;
@@ -7,6 +8,7 @@ export declare class Player {
     private static duration;
     private static isShuffle;
     private static queue;
+    static queue$: BehaviorSubject<any[]>;
     private static playlist;
     private static selectedQuality;
     /** Initialize with playlist and quality */
@@ -23,6 +25,7 @@ export declare class Player {
     static autoNext(): void;
     static playRandom(): void;
     static toggleShuffle(): void;
+    static getShuffleStatus(): boolean;
     static addToQueue(song: any): void;
     static removeFromQueue(index: number): void;
     static reorderQueue(from: number, to: number): void;

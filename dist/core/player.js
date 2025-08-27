@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
+const rxjs_1 = require("rxjs");
 class Player {
     /** Initialize with playlist and quality */
     static initialize(playlist, quality = 3) {
@@ -93,17 +94,23 @@ class Player {
     static toggleShuffle() {
         this.isShuffle = !this.isShuffle;
     }
+    static getShuffleStatus() {
+        return this.isShuffle;
+    }
     static addToQueue(song) {
         if (!this.queue.some(q => q.id === song.id)) {
             this.queue.push(song);
+            this.queue$.next([...this.queue]);
         }
     }
     static removeFromQueue(index) {
         this.queue.splice(index, 1);
+        this.queue$.next([...this.queue]);
     }
     static reorderQueue(from, to) {
         const item = this.queue.splice(from, 1)[0];
         this.queue.splice(to, 0, item);
+        this.queue$.next([...this.queue]);
     }
     static getCurrentTime() {
         return this.currentTime;
@@ -141,5 +148,6 @@ Player.currentTime = 0;
 Player.duration = 0;
 Player.isShuffle = true;
 Player.queue = [];
+Player.queue$ = new rxjs_1.BehaviorSubject([]);
 Player.playlist = [];
 Player.selectedQuality = 3;

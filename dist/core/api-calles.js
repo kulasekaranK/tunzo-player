@@ -21,7 +21,7 @@ class TunzoPlayerAPI {
         return __awaiter(this, arguments, void 0, function* (query, limit = 250) {
             var _a;
             try {
-                const response = yield fetch(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`);
+                const response = yield fetch(`https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }

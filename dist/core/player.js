@@ -14,6 +14,7 @@ class Player {
         this.audio.load();
         this.audio.play().catch(() => { });
     }
+    //updated
     static play(song, index = 0) {
         var _a;
         if (!song || !song.downloadUrl)

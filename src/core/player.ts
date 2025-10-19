@@ -25,6 +25,7 @@ export class Player {
     this.audio.load();
     this.audio.play().catch(() => { });
   }
+  //updated
 
   static play(song: any, index: number = 0) {
     if (!song || !song.downloadUrl) return;

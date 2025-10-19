@@ -8,7 +8,7 @@ export class TunzoPlayerAPI {
     async searchSongs(query: string, limit: number = 250): Promise<any[]> {
       try {
         const response = await fetch(
-          `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`
+          `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`
         );
   
         if (!response.ok) {

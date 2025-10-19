@@ -1,16 +1,16 @@
 {
     "name": "tunzo-player",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "description": "A music playback service for Angular and Ionic apps with native audio control support.",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
-"scripts": {
-  "build": "tsc",
-  "publish:patch": "npm version patch && npm run build && npm publish",
-  "publish:minor": "npm version minor && npm run build && npm publish",
-  "publish:major": "npm version major && npm run build && npm publish",
-  "publish": "npm run build"
-},
+    "scripts": {
+        "build": "tsc",
+        "publish:patch": "npm version patch && npm run build && npm publish",
+        "publish:minor": "npm version minor && npm run build && npm publish",
+        "publish:major": "npm version major && npm run build && npm publish",
+        "publish": "npm run build"
+    },
     "keywords": [
         "music",
         "player",

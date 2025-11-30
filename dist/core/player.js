@@ -1,153 +1,103 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
-const native_audio_1 = require("@capgo/native-audio");
 const keep_awake_1 = require("@capacitor-community/keep-awake");
-const core_1 = require("@capacitor/core");
 class Player {
     /** Initialize with playlist and quality */
-    static initialize(playlist_1) {
-        return __awaiter(this, arguments, void 0, function* (playlist, quality = 3) {
-            this.playlist = playlist;
-            this.selectedQuality = quality;
-            // Configure native audio if on native platform
-            if (this.isNative) {
-                try {
-                    yield native_audio_1.NativeAudio.configure({
-                        showNotification: true,
-                        background: true,
-                        focus: true
-                    });
-                }
-                catch (e) {
-                    console.warn('NativeAudio configure failed:', e);
-                }
-                this.setupNativeListeners();
-            }
-            else {
-                this.setupWebListeners();
-            }
-        });
+    static initialize(playlist, quality = 3) {
+        this.playlist = playlist;
+        this.selectedQuality = quality;
+        this.setupMediaSession();
+        this.setupAudioElement();
     }
-    /** Call this once on user gesture to unlock audio in WebView (Web only) */
+    /** Setup audio element for better compatibility */
+    static setupAudioElement() {
+        // Enable background playback
+        this.audio.preload = 'auto';
+        // @ts-ignore - Some browsers support this
+        this.audio.preservesPitch = false;
+        // Setup event listeners
+        this.audio.onloadedmetadata = () => {
+            this.duration = this.audio.duration;
+            this.updatePositionState();
+        };
+        this.audio.ontimeupdate = () => {
+            this.currentTime = this.audio.currentTime;
+            if (Math.floor(this.currentTime) % 5 === 0) {
+                this.updatePositionState();
+            }
+        };
+        this.audio.onended = () => {
+            this.autoNext();
+        };
+        this.audio.onplaying = () => {
+            this.isPlaying = true;
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+            }
+        };
+        this.audio.onpause = () => {
+            this.isPlaying = false;
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'paused';
+            }
+        };
+        this.audio.onwaiting = () => {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'none';
+            }
+        };
+        this.audio.onerror = (e) => {
+            console.error('Audio error:', this.audio.error, e);
+        };
+    }
+    /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
-        if (!this.isNative) {
-            this.webAudio.src = '';
-            this.webAudio.load();
-            this.webAudio.play().catch(() => { });
+        this.audio.src = '';
+        this.audio.load();
+        this.audio.play().catch(() => { });
+    }
+    static play(song, index = 0) {
+        var _a;
+        if (!song || !song.downloadUrl)
+            return;
+        this.currentSong = song;
+        this.currentIndex = index;
+        let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
+        // 🚀 Auto-convert http → https
+        if (url.startsWith('http://')) {
+            url = url.replace('http://', 'https://');
         }
-    }
-    static play(song_1) {
-        return __awaiter(this, arguments, void 0, function* (song, index = 0) {
-            var _a;
-            if (!song || !song.downloadUrl)
-                return;
-            this.currentSong = song;
-            this.currentIndex = index;
-            let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
-            // 🚀 Auto-convert http → https
-            if (url.startsWith('http://')) {
-                url = url.replace('http://', 'https://');
+        this.audio.src = url;
+        this.audio.load();
+        this.audio.play().then(() => {
+            this.isPlaying = true;
+            this.updateMediaSessionMetadata(song);
+            keep_awake_1.KeepAwake.keepAwake(); // Keep screen/CPU awake
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
             }
-            try {
-                if (this.isNative) {
-                    yield this.playNative(url, song);
-                }
-                else {
-                    this.playWeb(url, song);
-                }
-                this.isPlaying = true;
-                keep_awake_1.KeepAwake.keepAwake(); // Keep CPU awake for streaming
-            }
-            catch (err) {
-                this.isPlaying = false;
-                console.warn('Audio play failed:', err);
-            }
+        }).catch((err) => {
+            this.isPlaying = false;
+            console.warn('Audio play failed:', err);
         });
-    }
-    static playNative(url, song) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            try {
-                // Unload previous if any (though preload might handle it, safer to be clean)
-                // NativeAudio.unload({ assetId: 'currentSong' }).catch(() => {}); 
-                // Prepare artwork for lock screen
-                let artworkPath = '';
-                if (song.image) {
-                    if (Array.isArray(song.image)) {
-                        // Get highest quality image
-                        const img = song.image[song.image.length - 1];
-                        artworkPath = img.link || img.url || (typeof img === 'string' ? img : '');
-                    }
-                    else if (typeof song.image === 'string') {
-                        artworkPath = song.image;
-                    }
-                }
-                if (artworkPath.startsWith('http://')) {
-                    artworkPath = artworkPath.replace('http://', 'https://');
-                }
-                yield native_audio_1.NativeAudio.preload({
-                    assetId: 'currentSong',
-                    assetPath: url,
-                    isUrl: true,
-                    audioChannelNum: 1,
-                    // Metadata for Lock Screen
-                    notificationMetadata: {
-                        album: ((_a = song.album) === null || _a === void 0 ? void 0 : _a.name) || song.album || 'Unknown Album',
-                        artist: song.primaryArtists || song.artist || 'Unknown Artist',
-                        title: song.name || song.title || 'Unknown Title',
-                        artworkUrl: artworkPath
-                    }
-                });
-                yield native_audio_1.NativeAudio.play({ assetId: 'currentSong' });
-            }
-            catch (e) {
-                console.error("Native play error", e);
-                throw e;
-            }
-        });
-    }
-    static playWeb(url, song) {
-        this.webAudio.src = url;
-        // @ts-ignore
-        this.webAudio.title = song.name || song.title || 'Unknown Title';
-        this.webAudio.preload = 'auto';
-        this.webAudio.load();
-        this.webAudio.play();
-        // Basic MediaSession for Web
-        if ('mediaSession' in navigator) {
-            this.updateWebMediaSession(song);
-        }
     }
     static pause() {
-        if (this.isNative) {
-            native_audio_1.NativeAudio.pause({ assetId: 'currentSong' });
-        }
-        else {
-            this.webAudio.pause();
-        }
+        this.audio.pause();
         this.isPlaying = false;
         keep_awake_1.KeepAwake.allowSleep();
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'paused';
+        }
     }
     static resume() {
-        if (this.isNative) {
-            native_audio_1.NativeAudio.resume({ assetId: 'currentSong' });
-        }
-        else {
-            this.webAudio.play();
-        }
+        this.audio.play();
         this.isPlaying = true;
         keep_awake_1.KeepAwake.keepAwake();
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+        }
     }
     static togglePlayPause() {
         if (this.isPlaying) {
@@ -177,13 +127,8 @@ class Player {
         }
     }
     static seek(seconds) {
-        if (this.isNative) {
-            native_audio_1.NativeAudio.setCurrentTime({ assetId: 'currentSong', time: seconds });
-        }
-        else {
-            this.webAudio.currentTime = seconds;
-        }
-        this.currentTime = seconds;
+        this.audio.currentTime = seconds;
+        this.updatePositionState();
     }
     static autoNext() {
         this.next();
@@ -245,62 +190,75 @@ class Player {
         return this.playlist;
     }
     // -------------------------------------------------------------------------
-    // Listeners
+    // Native Media Session (Lock Screen Controls)
     // -------------------------------------------------------------------------
-    static setupNativeListeners() {
-        // Song Finished
-        native_audio_1.NativeAudio.addListener('complete', (result) => {
-            if (result.assetId === 'currentSong') {
-                this.autoNext();
-            }
-        });
-        // Time Update (Progress) - Note: Plugin might not emit this frequently
-        // We might need to poll for current time if the plugin doesn't emit 'progress'
-        // @capgo/native-audio usually emits 'progress' or we use getCurrentTime
-        // Checking docs: usually we poll or listen to 'progress'
-        // Assuming 'progress' event exists or we use setInterval
-        setInterval(() => __awaiter(this, void 0, void 0, function* () {
-            if (this.isPlaying && this.isNative) {
-                try {
-                    const result = yield native_audio_1.NativeAudio.getCurrentTime({ assetId: 'currentSong' });
-                    this.currentTime = result.currentTime;
-                    const durResult = yield native_audio_1.NativeAudio.getDuration({ assetId: 'currentSong' });
-                    this.duration = durResult.duration;
-                }
-                catch (e) { }
-            }
-        }), 1000);
-    }
-    static setupWebListeners() {
-        this.webAudio.onended = () => this.autoNext();
-        this.webAudio.ontimeupdate = () => {
-            this.currentTime = this.webAudio.currentTime;
-            this.duration = this.webAudio.duration || 0;
-        };
-        this.webAudio.onplaying = () => this.isPlaying = true;
-        this.webAudio.onpause = () => this.isPlaying = false;
-    }
-    static updateWebMediaSession(song) {
-        var _a;
-        // ... (Keep existing Web MediaSession logic if needed, or simplify)
-        // Since we are focusing on Native, we can keep the basic one or copy the previous logic
-        // For brevity, I'll omit the full implementation here as Native is the priority
-        // But to be safe, let's keep a minimal version
+    static setupMediaSession() {
         if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: song.name || song.title || 'Unknown Title',
-                artist: song.primaryArtists || song.artist || 'Unknown Artist',
-                album: ((_a = song.album) === null || _a === void 0 ? void 0 : _a.name) || song.album || '',
-                artwork: [{ src: 'https://via.placeholder.com/500', sizes: '500x500', type: 'image/png' }] // Placeholder
-            });
             navigator.mediaSession.setActionHandler('play', () => this.resume());
             navigator.mediaSession.setActionHandler('pause', () => this.pause());
             navigator.mediaSession.setActionHandler('previoustrack', () => this.prev());
             navigator.mediaSession.setActionHandler('nexttrack', () => this.next());
+            navigator.mediaSession.setActionHandler('seekto', (details) => {
+                if (details.seekTime !== undefined) {
+                    this.seek(details.seekTime);
+                }
+            });
+        }
+    }
+    static updateMediaSessionMetadata(song) {
+        var _a, _b;
+        if ('mediaSession' in navigator) {
+            // Extract artwork from image array
+            const artwork = [];
+            if (song.image && Array.isArray(song.image)) {
+                // Get the highest quality image (last in array, usually 500x500)
+                const highQualityImage = song.image[song.image.length - 1];
+                if (highQualityImage && highQualityImage.url) {
+                    let src = highQualityImage.url;
+                    if (src.startsWith('http://')) {
+                        src = src.replace('http://', 'https://');
+                    }
+                    // Skip placeholder images
+                    if (!src.includes('_i/share-image')) {
+                        artwork.push({
+                            src,
+                            sizes: highQualityImage.quality || '500x500',
+                            type: 'image/jpeg'
+                        });
+                    }
+                }
+            }
+            // Extract artist name from artists.primary array
+            let artistName = 'Unknown Artist';
+            if (((_a = song.artists) === null || _a === void 0 ? void 0 : _a.primary) && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
+                artistName = song.artists.primary.map((artist) => artist.name).join(', ');
+            }
+            else if (song.primaryArtists) {
+                artistName = song.primaryArtists;
+            }
+            else if (song.artist) {
+                artistName = song.artist;
+            }
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: song.name || song.title || 'Unknown Title',
+                artist: artistName,
+                album: ((_b = song.album) === null || _b === void 0 ? void 0 : _b.name) || 'Unknown Album',
+                artwork: artwork.length > 0 ? artwork : undefined
+            });
+        }
+    }
+    static updatePositionState() {
+        if ('mediaSession' in navigator && this.duration > 0) {
+            navigator.mediaSession.setPositionState({
+                duration: this.duration,
+                playbackRate: this.audio.playbackRate,
+                position: this.audio.currentTime
+            });
         }
     }
 }
 exports.Player = Player;
+Player.audio = new Audio();
 Player.currentSong = null;
 Player.currentIndex = 0;
 Player.isPlaying = false;
@@ -311,5 +269,3 @@ Player.queue = [];
 Player.queue$ = new rxjs_1.BehaviorSubject([]);
 Player.playlist = [];
 Player.selectedQuality = 3;
-Player.isNative = core_1.Capacitor.isNativePlatform();
-Player.webAudio = new Audio(); // Fallback for web

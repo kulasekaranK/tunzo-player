@@ -250,31 +250,41 @@ export class Player {
 
   private static updateMediaSessionMetadata(song: any) {
     if ('mediaSession' in navigator) {
+      // Extract artwork from image array
       const artwork = [];
-      if (song.image) {
-        if (Array.isArray(song.image)) {
-          song.image.forEach((img: any) => {
-            let src = img.link || img.url || (typeof img === 'string' ? img : '');
-            if (src) {
-              if (src.startsWith('http://')) {
-                src = src.replace('http://', 'https://');
-              }
-              artwork.push({ src, sizes: '500x500', type: 'image/jpeg' });
-            }
-          });
-        } else if (typeof song.image === 'string') {
-          let src = song.image;
+      if (song.image && Array.isArray(song.image)) {
+        // Get the highest quality image (last in array, usually 500x500)
+        const highQualityImage = song.image[song.image.length - 1];
+        if (highQualityImage && highQualityImage.url) {
+          let src = highQualityImage.url;
           if (src.startsWith('http://')) {
             src = src.replace('http://', 'https://');
           }
-          artwork.push({ src: src, sizes: '500x500', type: 'image/jpeg' });
+          // Skip placeholder images
+          if (!src.includes('_i/share-image')) {
+            artwork.push({
+              src,
+              sizes: highQualityImage.quality || '500x500',
+              type: 'image/jpeg'
+            });
+          }
         }
+      }
+
+      // Extract artist name from artists.primary array
+      let artistName = 'Unknown Artist';
+      if (song.artists?.primary && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
+        artistName = song.artists.primary.map((artist: any) => artist.name).join(', ');
+      } else if (song.primaryArtists) {
+        artistName = song.primaryArtists;
+      } else if (song.artist) {
+        artistName = song.artist;
       }
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: song.name || song.title || 'Unknown Title',
-        artist: song.primaryArtists || song.artist || 'Unknown Artist',
-        album: song.album?.name || song.album || 'Unknown Album',
+        artist: artistName,
+        album: song.album?.name || 'Unknown Album',
         artwork: artwork.length > 0 ? artwork : undefined
       });
     }

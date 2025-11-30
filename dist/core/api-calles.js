@@ -11,8 +11,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TunzoPlayerAPI = void 0;
 class TunzoPlayerAPI {
+    constructor() {
+        this.baseUrl = "https://saavn.sumit.co/api";
+    }
     /**
-     * Search for songs using the saavn.dev API
+     * Register/Update the base API URL
+     * @param url The new base URL to use for API calls
+     */
+    registerApiUrl(url) {
+        this.baseUrl = url;
+    }
+    /**
+     * Search for songs using the API
      * @param query Search keyword (e.g., artist name, song name)
      * @param limit Number of results to return (default: 250)
      * @returns Array of song result objects
@@ -21,7 +31,7 @@ class TunzoPlayerAPI {
         return __awaiter(this, arguments, void 0, function* (query, limit = 250) {
             var _a;
             try {
-                const response = yield fetch(`https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`);
+                const response = yield fetch(`${this.baseUrl}/search/songs?query=${encodeURIComponent(query)}&limit=${limit}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -30,6 +40,23 @@ class TunzoPlayerAPI {
             }
             catch (error) {
                 console.error("TunzoPlayerAPI Error:", error);
+                return [];
+            }
+        });
+    }
+    suggesstedSongs(id_1) {
+        return __awaiter(this, arguments, void 0, function* (id, limit = 100) {
+            var _a;
+            try {
+                const response = yield fetch(`${this.baseUrl}/songs/${id}/suggestions?limit=${limit}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const json = yield response.json();
+                return ((_a = json === null || json === void 0 ? void 0 : json.data) === null || _a === void 0 ? void 0 : _a.results) || [];
+            }
+            catch (error) {
+                console.error("TunzoPlayerAPI Error (suggesstedSongs):", error);
                 return [];
             }
         });
@@ -43,7 +70,7 @@ class TunzoPlayerAPI {
         return __awaiter(this, arguments, void 0, function* (query, limit = 1000) {
             var _a;
             try {
-                const response = yield fetch(`https://saavn.sumit.co/api/search/playlists?query=${encodeURIComponent(query)}&limit=${limit}`);
+                const response = yield fetch(`${this.baseUrl}/search/playlists?query=${encodeURIComponent(query)}&limit=${limit}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -65,7 +92,7 @@ class TunzoPlayerAPI {
     getPlaylistDetails(id_1) {
         return __awaiter(this, arguments, void 0, function* (id, link = "", limit = 1000) {
             try {
-                let url = `https://saavn.sumit.co/api/playlists?id=${id}&limit=${limit}`;
+                let url = `${this.baseUrl}/playlists?id=${id}&limit=${limit}`;
                 if (link) {
                     url += `&link=${encodeURIComponent(link)}`;
                 }
@@ -91,7 +118,7 @@ class TunzoPlayerAPI {
         return __awaiter(this, arguments, void 0, function* (query, limit = 1000) {
             var _a;
             try {
-                const response = yield fetch(`https://saavn.sumit.co/api/search/albums?query=${encodeURIComponent(query)}&limit=${limit}`);
+                const response = yield fetch(`${this.baseUrl}/search/albums?query=${encodeURIComponent(query)}&limit=${limit}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -112,7 +139,7 @@ class TunzoPlayerAPI {
     getAlbumDetails(id_1) {
         return __awaiter(this, arguments, void 0, function* (id, link = "") {
             try {
-                let url = `https://saavn.sumit.co/api/albums?id=${id}`;
+                let url = `${this.baseUrl}/albums?id=${id}`;
                 if (link) {
                     url += `&link=${encodeURIComponent(link)}`;
                 }

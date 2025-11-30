@@ -37,6 +37,9 @@ export declare class Player {
     static setQuality(index: number): void;
     static getQueue(): any[];
     static getPlaylist(): any[];
+    private static configureBackgroundMode;
+    private static enableBackgroundMode;
+    private static disableBackgroundMode;
     private static setupMediaSession;
     private static updateMediaSessionMetadata;
     private static updatePositionState;

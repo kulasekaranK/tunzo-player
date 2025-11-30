@@ -1,13 +1,25 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
+const background_mode_1 = require("@capacitor-community/background-mode");
+const keep_awake_1 = require("@capacitor-community/keep-awake");
 class Player {
     /** Initialize with playlist and quality */
     static initialize(playlist, quality = 3) {
         this.playlist = playlist;
         this.selectedQuality = quality;
         this.setupMediaSession();
+        this.configureBackgroundMode();
     }
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
@@ -35,6 +47,7 @@ class Player {
         this.audio.play().then(() => {
             this.isPlaying = true;
             this.updateMediaSessionMetadata(song);
+            this.enableBackgroundMode();
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
             }
@@ -79,6 +92,7 @@ class Player {
     static pause() {
         this.audio.pause();
         this.isPlaying = false;
+        this.disableBackgroundMode();
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
         }
@@ -179,6 +193,57 @@ class Player {
     }
     static getPlaylist() {
         return this.playlist;
+    }
+    // -------------------------------------------------------------------------
+    // Capacitor Background Mode & Keep Awake
+    // -------------------------------------------------------------------------
+    static configureBackgroundMode() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                // Enable background mode
+                yield background_mode_1.BackgroundMode.enable();
+                // Android specific settings
+                yield background_mode_1.BackgroundMode.setSettings({
+                    title: "Tunzo Player",
+                    text: "Playing music in background",
+                    icon: "ic_launcher",
+                    color: "042730",
+                    resume: true,
+                    hidden: false,
+                    bigText: true
+                });
+            }
+            catch (err) {
+                console.warn('Background Mode plugin not available:', err);
+            }
+        });
+    }
+    static enableBackgroundMode() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                yield keep_awake_1.KeepAwake.keepAwake();
+                yield background_mode_1.BackgroundMode.enable();
+                // On Android, this moves the app to a foreground service state
+                yield background_mode_1.BackgroundMode.moveToForeground();
+            }
+            catch (err) {
+                // Plugin might not be installed or on web
+            }
+        });
+    }
+    static disableBackgroundMode() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                yield keep_awake_1.KeepAwake.allowSleep();
+                // We might want to keep background mode enabled if we want to resume later,
+                // but for battery saving, we can disable it or move to background.
+                // await BackgroundMode.disable(); 
+                yield background_mode_1.BackgroundMode.moveToBackground();
+            }
+            catch (err) {
+                // Plugin might not be installed or on web
+            }
+        });
     }
     // -------------------------------------------------------------------------
     // Native Media Session (Lock Screen Controls)

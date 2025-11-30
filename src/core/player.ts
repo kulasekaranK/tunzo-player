@@ -1,4 +1,6 @@
 import { BehaviorSubject } from 'rxjs';
+import { BackgroundMode } from '@capacitor-community/background-mode';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 
 export class Player {
   private static audio = new Audio();
@@ -18,6 +20,7 @@ export class Player {
     this.playlist = playlist;
     this.selectedQuality = quality;
     this.setupMediaSession();
+    this.configureBackgroundMode();
   }
 
   /** Call this once on user gesture to unlock audio in WebView */
@@ -49,6 +52,7 @@ export class Player {
     this.audio.play().then(() => {
       this.isPlaying = true;
       this.updateMediaSessionMetadata(song);
+      this.enableBackgroundMode();
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'playing';
       }
@@ -101,6 +105,7 @@ export class Player {
   static pause() {
     this.audio.pause();
     this.isPlaying = false;
+    this.disableBackgroundMode();
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = 'paused';
     }
@@ -219,6 +224,53 @@ export class Player {
 
   static getPlaylist(): any[] {
     return this.playlist;
+  }
+
+  // -------------------------------------------------------------------------
+  // Capacitor Background Mode & Keep Awake
+  // -------------------------------------------------------------------------
+
+  private static async configureBackgroundMode() {
+    try {
+      // Enable background mode
+      await BackgroundMode.enable();
+
+      // Android specific settings
+      await BackgroundMode.setSettings({
+        title: "Tunzo Player",
+        text: "Playing music in background",
+        icon: "ic_launcher",
+        color: "042730",
+        resume: true,
+        hidden: false,
+        bigText: true
+      });
+    } catch (err) {
+      console.warn('Background Mode plugin not available:', err);
+    }
+  }
+
+  private static async enableBackgroundMode() {
+    try {
+      await KeepAwake.keepAwake();
+      await BackgroundMode.enable();
+      // On Android, this moves the app to a foreground service state
+      await BackgroundMode.moveToForeground();
+    } catch (err) {
+      // Plugin might not be installed or on web
+    }
+  }
+
+  private static async disableBackgroundMode() {
+    try {
+      await KeepAwake.allowSleep();
+      // We might want to keep background mode enabled if we want to resume later,
+      // but for battery saving, we can disable it or move to background.
+      // await BackgroundMode.disable(); 
+      await BackgroundMode.moveToBackground();
+    } catch (err) {
+      // Plugin might not be installed or on web
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 import { BehaviorSubject } from 'rxjs';
 export declare class Player {
-    private static audio;
     private static currentSong;
     private static currentIndex;
     private static isPlaying;
@@ -11,11 +10,15 @@ export declare class Player {
     static queue$: BehaviorSubject<any[]>;
     private static playlist;
     private static selectedQuality;
+    private static isNative;
+    private static webAudio;
     /** Initialize with playlist and quality */
-    static initialize(playlist: any[], quality?: number): void;
-    /** Call this once on user gesture to unlock audio in WebView */
+    static initialize(playlist: any[], quality?: number): Promise<void>;
+    /** Call this once on user gesture to unlock audio in WebView (Web only) */
     static unlockAudio(): void;
-    static play(song: any, index?: number): void;
+    static play(song: any, index?: number): Promise<void>;
+    private static playNative;
+    private static playWeb;
     static pause(): void;
     static resume(): void;
     static togglePlayPause(): void;
@@ -37,9 +40,7 @@ export declare class Player {
     static setQuality(index: number): void;
     static getQueue(): any[];
     static getPlaylist(): any[];
-    private static enableBackgroundMode;
-    private static disableBackgroundMode;
-    private static setupMediaSession;
-    private static updateMediaSessionMetadata;
-    private static updatePositionState;
+    private static setupNativeListeners;
+    private static setupWebListeners;
+    private static updateWebMediaSession;
 }

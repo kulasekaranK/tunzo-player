@@ -42,6 +42,8 @@ export class Player {
     }
 
     this.audio.src = url;
+    // @ts-ignore
+    this.audio.title = song.name || song.title || 'Unknown Title'; // Help some browsers identify the track
     this.audio.preload = 'auto'; // Improve loading
     this.audio.load(); // Ensure audio is loaded before play
     this.audio.play().then(() => {
@@ -64,6 +66,24 @@ export class Player {
     // Set current time
     this.audio.ontimeupdate = () => {
       this.currentTime = this.audio.currentTime;
+      // Update position state less frequently to avoid spamming, but enough to keep sync
+      if (Math.floor(this.currentTime) % 5 === 0) {
+        this.updatePositionState();
+      }
+    };
+
+    // Handle buffering/stalled states
+    this.audio.onwaiting = () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'none'; // Or 'paused' to indicate buffering
+      }
+    };
+
+    this.audio.onplaying = () => {
+      this.isPlaying = true;
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
     };
 
     // Auto-play next song
@@ -226,20 +246,28 @@ export class Player {
         if (Array.isArray(song.image)) {
           // Assuming image array contains objects with url/link and quality
           song.image.forEach((img: any) => {
-            const src = img.link || img.url || (typeof img === 'string' ? img : '');
+            let src = img.link || img.url || (typeof img === 'string' ? img : '');
             if (src) {
+              // 🚀 Auto-convert http → https for images too
+              if (src.startsWith('http://')) {
+                src = src.replace('http://', 'https://');
+              }
               artwork.push({ src, sizes: '500x500', type: 'image/jpeg' });
             }
           });
         } else if (typeof song.image === 'string') {
-          artwork.push({ src: song.image, sizes: '500x500', type: 'image/jpeg' });
+          let src = song.image;
+          if (src.startsWith('http://')) {
+            src = src.replace('http://', 'https://');
+          }
+          artwork.push({ src: src, sizes: '500x500', type: 'image/jpeg' });
         }
       }
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: song.name || song.title || 'Unknown Title',
         artist: song.primaryArtists || song.artist || 'Unknown Artist',
-        album: song.album?.name || song.album || '',
+        album: song.album?.name || song.album || 'Unknown Album',
         artwork: artwork.length > 0 ? artwork : undefined
       });
     }

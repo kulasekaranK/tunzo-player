@@ -76,4 +76,36 @@ yarn add tunzo-player
 | 3     | High (160kbps)    |
 | 4     | Ultra (320kbps)   |
 
+| 4     | Ultra (320kbps)   |
+
+## 📱 Native Configuration (Ionic/Capacitor)
+
+To ensure background audio works correctly on Android and iOS (preventing the app from pausing when the screen locks), you must configure your native projects.
+
+### **Android (`android/app/src/main/AndroidManifest.xml`)**
+
+Add the following permissions inside the `<manifest>` tag:
+
+```xml
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+```
+
+**Note:** Modern Android versions might require a foreground service notification to keep the audio alive indefinitely. The `MediaSession` API implemented in this package helps, but for guaranteed persistence, consider using a native audio plugin if issues persist.
+
+### **iOS (`ios/App/App/Info.plist`)**
+
+Add `audio` to the `UIBackgroundModes` key to allow background playback:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>audio</string>
+</array>
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
 # tunzo-player

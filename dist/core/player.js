@@ -11,7 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
-const background_mode_1 = require("@capacitor-community/background-mode");
+const capacitor_background_mode_1 = require("@anuradev/capacitor-background-mode");
 const keep_awake_1 = require("@capacitor-community/keep-awake");
 class Player {
     /** Initialize with playlist and quality */
@@ -19,7 +19,6 @@ class Player {
         this.playlist = playlist;
         this.selectedQuality = quality;
         this.setupMediaSession();
-        this.configureBackgroundMode();
     }
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
@@ -197,34 +196,20 @@ class Player {
     // -------------------------------------------------------------------------
     // Capacitor Background Mode & Keep Awake
     // -------------------------------------------------------------------------
-    static configureBackgroundMode() {
+    static enableBackgroundMode() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                // Enable background mode
-                yield background_mode_1.BackgroundMode.enable();
-                // Android specific settings
-                yield background_mode_1.BackgroundMode.setSettings({
+                yield keep_awake_1.KeepAwake.keepAwake();
+                yield capacitor_background_mode_1.BackgroundMode.enable({
                     title: "Tunzo Player",
                     text: "Playing music in background",
                     icon: "ic_launcher",
                     color: "042730",
                     resume: true,
                     hidden: false,
-                    bigText: true
+                    bigText: true,
+                    disableWebViewOptimization: true
                 });
-            }
-            catch (err) {
-                console.warn('Background Mode plugin not available:', err);
-            }
-        });
-    }
-    static enableBackgroundMode() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield keep_awake_1.KeepAwake.keepAwake();
-                yield background_mode_1.BackgroundMode.enable();
-                // On Android, this moves the app to a foreground service state
-                yield background_mode_1.BackgroundMode.moveToForeground();
             }
             catch (err) {
                 // Plugin might not be installed or on web
@@ -238,7 +223,7 @@ class Player {
                 // We might want to keep background mode enabled if we want to resume later,
                 // but for battery saving, we can disable it or move to background.
                 // await BackgroundMode.disable(); 
-                yield background_mode_1.BackgroundMode.moveToBackground();
+                yield capacitor_background_mode_1.BackgroundMode.moveToBackground();
             }
             catch (err) {
                 // Plugin might not be installed or on web

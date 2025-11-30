@@ -1,5 +1,5 @@
 import { BehaviorSubject } from 'rxjs';
-import { BackgroundMode } from '@capacitor-community/background-mode';
+import { BackgroundMode } from '@anuradev/capacitor-background-mode';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 
 export class Player {
@@ -20,7 +20,6 @@ export class Player {
     this.playlist = playlist;
     this.selectedQuality = quality;
     this.setupMediaSession();
-    this.configureBackgroundMode();
   }
 
   /** Call this once on user gesture to unlock audio in WebView */
@@ -230,32 +229,19 @@ export class Player {
   // Capacitor Background Mode & Keep Awake
   // -------------------------------------------------------------------------
 
-  private static async configureBackgroundMode() {
+  private static async enableBackgroundMode() {
     try {
-      // Enable background mode
-      await BackgroundMode.enable();
-
-      // Android specific settings
-      await BackgroundMode.setSettings({
+      await KeepAwake.keepAwake();
+      await BackgroundMode.enable({
         title: "Tunzo Player",
         text: "Playing music in background",
         icon: "ic_launcher",
         color: "042730",
         resume: true,
         hidden: false,
-        bigText: true
+        bigText: true,
+        disableWebViewOptimization: true
       });
-    } catch (err) {
-      console.warn('Background Mode plugin not available:', err);
-    }
-  }
-
-  private static async enableBackgroundMode() {
-    try {
-      await KeepAwake.keepAwake();
-      await BackgroundMode.enable();
-      // On Android, this moves the app to a foreground service state
-      await BackgroundMode.moveToForeground();
     } catch (err) {
       // Plugin might not be installed or on web
     }

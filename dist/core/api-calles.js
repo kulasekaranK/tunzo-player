@@ -48,7 +48,7 @@ class TunzoPlayerAPI {
         return __awaiter(this, arguments, void 0, function* (id, limit = 100) {
             var _a;
             try {
-                const response = yield fetch(`${this.baseUrl}/songs/${id}/suggestions?limit=${limit}`);
+                const response = yield fetch(`https://tunzo-api.vercel.app/api/songs/${id}/suggestions?limit=${limit}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }

@@ -36,7 +36,7 @@ export class TunzoPlayerAPI {
   async suggesstedSongs(id: string, limit: number = 100): Promise<any[]> {
     try {
       const response = await fetch(
-        `${this.baseUrl}/songs/${id}/suggestions?limit=${limit}`
+        `https://tunzo-api.vercel.app/api/songs/${id}/suggestions?limit=${limit}`
       );
 
       if (!response.ok) {

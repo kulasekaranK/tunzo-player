@@ -1,5 +1,6 @@
 import { BehaviorSubject } from 'rxjs';
 import { KeepAwake } from '@capacitor-community/keep-awake';
+import { ToastController } from '@ionic/angular/standalone';
 
 export class Player {
   private static audio = new Audio();
@@ -13,6 +14,8 @@ export class Player {
   static queue$ = new BehaviorSubject<any[]>([]);
   private static playlist: any[] = [];
   private static selectedQuality = 3;
+  private static intendedPlaying = false;
+  private static toastCtrl: ToastController;
 
   /** Initialize with playlist and quality */
   static initialize(playlist: any[], quality = 3) {
@@ -20,6 +23,11 @@ export class Player {
     this.selectedQuality = quality;
     this.setupMediaSession();
     this.setupAudioElement();
+    this.startWatchdog();
+  }
+
+  static setToastController(controller: ToastController) {
+    this.toastCtrl = controller;
   }
 
   /** Setup audio element for better compatibility */
@@ -71,6 +79,15 @@ export class Player {
     };
   }
 
+  private static startWatchdog() {
+    setInterval(() => {
+      if (this.intendedPlaying && this.audio.paused && this.currentSong) {
+        console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
+        this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
+      }
+    }, 10000);
+  }
+
   /** Call this once on user gesture to unlock audio in WebView */
   static unlockAudio() {
     this.audio.src = '';
@@ -80,6 +97,8 @@ export class Player {
 
   static play(song: any, index: number = 0) {
     if (!song || !song.downloadUrl) return;
+
+    this.intendedPlaying = true;
 
     this.currentSong = song;
     this.currentIndex = index;
@@ -108,6 +127,7 @@ export class Player {
   }
 
   static pause() {
+    this.intendedPlaying = false;
     this.audio.pause();
     this.isPlaying = false;
     KeepAwake.allowSleep();
@@ -117,6 +137,7 @@ export class Player {
   }
 
   static resume() {
+    this.intendedPlaying = true;
     this.audio.play();
     this.isPlaying = true;
     KeepAwake.keepAwake();
@@ -143,6 +164,8 @@ export class Player {
       this.playRandom();
     } else if (this.currentIndex < this.playlist.length - 1) {
       this.play(this.playlist[this.currentIndex + 1], this.currentIndex + 1);
+    } else {
+      this.intendedPlaying = false;
     }
   }
 
@@ -178,10 +201,22 @@ export class Player {
     return this.isShuffle;
   }
 
-  static addToQueue(song: any) {
+  static async addToQueue(song: any) {
     if (!this.queue.some(q => q.id === song.id)) {
       this.queue.push(song);
       this.queue$.next([...this.queue]);
+
+      if (this.toastCtrl) {
+        const toast = await this.toastCtrl.create({
+          message: 'Song added to queue',
+          duration: 2000,
+          position: 'bottom',
+          mode: 'ios',
+          color: 'dark',
+          cssClass: 'custom-toast'
+        });
+        await toast.present();
+      }
     }
   }
 

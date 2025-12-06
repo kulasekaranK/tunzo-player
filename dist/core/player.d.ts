@@ -1,4 +1,5 @@
 import { BehaviorSubject } from 'rxjs';
+import { ToastController } from '@ionic/angular/standalone';
 export declare class Player {
     private static audio;
     private static currentSong;
@@ -11,10 +12,14 @@ export declare class Player {
     static queue$: BehaviorSubject<any[]>;
     private static playlist;
     private static selectedQuality;
+    private static intendedPlaying;
+    private static toastCtrl;
     /** Initialize with playlist and quality */
     static initialize(playlist: any[], quality?: number): void;
+    static setToastController(controller: ToastController): void;
     /** Setup audio element for better compatibility */
     private static setupAudioElement;
+    private static startWatchdog;
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio(): void;
     static play(song: any, index?: number): void;
@@ -28,7 +33,7 @@ export declare class Player {
     static playRandom(): void;
     static toggleShuffle(): void;
     static getShuffleStatus(): boolean;
-    static addToQueue(song: any): void;
+    static addToQueue(song: any): Promise<void>;
     static removeFromQueue(index: number): void;
     static reorderQueue(from: number, to: number): void;
     static getCurrentTime(): number;

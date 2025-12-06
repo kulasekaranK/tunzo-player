@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
@@ -10,6 +19,10 @@ class Player {
         this.selectedQuality = quality;
         this.setupMediaSession();
         this.setupAudioElement();
+        this.startWatchdog();
+    }
+    static setToastController(controller) {
+        this.toastCtrl = controller;
     }
     /** Setup audio element for better compatibility */
     static setupAudioElement() {
@@ -52,6 +65,14 @@ class Player {
             console.error('Audio error:', this.audio.error, e);
         };
     }
+    static startWatchdog() {
+        setInterval(() => {
+            if (this.intendedPlaying && this.audio.paused && this.currentSong) {
+                console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
+                this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
+            }
+        }, 10000);
+    }
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
         this.audio.src = '';
@@ -62,6 +83,7 @@ class Player {
         var _a;
         if (!song || !song.downloadUrl)
             return;
+        this.intendedPlaying = true;
         this.currentSong = song;
         this.currentIndex = index;
         let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
@@ -84,6 +106,7 @@ class Player {
         });
     }
     static pause() {
+        this.intendedPlaying = false;
         this.audio.pause();
         this.isPlaying = false;
         keep_awake_1.KeepAwake.allowSleep();
@@ -92,6 +115,7 @@ class Player {
         }
     }
     static resume() {
+        this.intendedPlaying = true;
         this.audio.play();
         this.isPlaying = true;
         keep_awake_1.KeepAwake.keepAwake();
@@ -119,6 +143,9 @@ class Player {
         }
         else if (this.currentIndex < this.playlist.length - 1) {
             this.play(this.playlist[this.currentIndex + 1], this.currentIndex + 1);
+        }
+        else {
+            this.intendedPlaying = false;
         }
     }
     static prev() {
@@ -149,10 +176,23 @@ class Player {
         return this.isShuffle;
     }
     static addToQueue(song) {
-        if (!this.queue.some(q => q.id === song.id)) {
-            this.queue.push(song);
-            this.queue$.next([...this.queue]);
-        }
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.queue.some(q => q.id === song.id)) {
+                this.queue.push(song);
+                this.queue$.next([...this.queue]);
+                if (this.toastCtrl) {
+                    const toast = yield this.toastCtrl.create({
+                        message: 'Song added to queue',
+                        duration: 2000,
+                        position: 'bottom',
+                        mode: 'ios',
+                        color: 'dark',
+                        cssClass: 'custom-toast'
+                    });
+                    yield toast.present();
+                }
+            }
+        });
     }
     static removeFromQueue(index) {
         this.queue.splice(index, 1);
@@ -269,3 +309,4 @@ Player.queue = [];
 Player.queue$ = new rxjs_1.BehaviorSubject([]);
 Player.playlist = [];
 Player.selectedQuality = 3;
+Player.intendedPlaying = false;

@@ -1,6 +1,8 @@
 import { BehaviorSubject } from 'rxjs';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { ToastController } from '@ionic/angular/standalone';
+import { Capacitor } from '@capacitor/core';
+import { Playlist, AudioTrack, RmxAudioStatusMessage } from 'capacitor-plugin-playlist';
 
 export class Player {
   private static audio = new Audio();
@@ -16,14 +18,30 @@ export class Player {
   private static selectedQuality = 3;
   private static intendedPlaying = false;
   private static toastCtrl: ToastController;
+  private static isAndroid = Capacitor.getPlatform() === 'android';
 
   /** Initialize with playlist and quality */
   static initialize(playlist: any[], quality = 3) {
     this.playlist = playlist;
     this.selectedQuality = quality;
-    this.setupMediaSession();
-    this.setupAudioElement();
+    if (this.isAndroid) {
+      this.setupAndroidPlayer();
+    } else {
+      this.setupMediaSession();
+      this.setupAudioElement();
+    }
     this.startWatchdog();
+  }
+
+  private static setupAndroidPlayer() {
+    Playlist.addListener('status', (data) => {
+      if (data && data.status && (
+        data.status.msgType === RmxAudioStatusMessage.RMXSTATUS_COMPLETED ||
+        data.status.msgType === RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED
+      )) {
+        this.autoNext();
+      }
+    });
   }
 
   static setToastController(controller: ToastController) {
@@ -81,18 +99,24 @@ export class Player {
 
   private static startWatchdog() {
     setInterval(() => {
-      if (this.intendedPlaying && this.audio.paused && this.currentSong) {
+      if (this.intendedPlaying && (this.isAndroid ? false : this.audio.paused) && this.currentSong) {
         console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
-        this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
+        if (this.isAndroid) {
+          Playlist.play().catch(e => console.warn('Watchdog resume failed:', e));
+        } else {
+          this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
+        }
       }
     }, 10000);
   }
 
   /** Call this once on user gesture to unlock audio in WebView */
   static unlockAudio() {
-    this.audio.src = '';
-    this.audio.load();
-    this.audio.play().catch(() => { });
+    if (!this.isAndroid) {
+      this.audio.src = '';
+      this.audio.load();
+      this.audio.play().catch(() => { });
+    }
   }
 
   static play(song: any, index: number = 0) {
@@ -110,38 +134,95 @@ export class Player {
       url = url.replace('http://', 'https://');
     }
 
-    this.audio.src = url;
-    this.audio.load();
+    if (this.isAndroid) {
+      this.playAndroid(song, url);
+    } else {
+      this.audio.src = url;
+      this.audio.load();
 
-    this.audio.play().then(() => {
-      this.isPlaying = true;
-      this.updateMediaSessionMetadata(song);
-      KeepAwake.keepAwake(); // Keep screen/CPU awake
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = 'playing';
+      this.audio.play().then(() => {
+        this.isPlaying = true;
+        this.updateMediaSessionMetadata(song);
+        KeepAwake.keepAwake(); // Keep screen/CPU awake
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }).catch((err) => {
+        this.isPlaying = false;
+        console.warn('Audio play failed:', err);
+      });
+    }
+  }
+
+  private static async playAndroid(song: any, url: string) {
+    try {
+      // Extract artwork
+      let artworkUrl = '';
+      if (song.image && Array.isArray(song.image)) {
+        const highQualityImage = song.image[song.image.length - 1];
+        if (highQualityImage && highQualityImage.url) {
+          artworkUrl = highQualityImage.url;
+        }
       }
-    }).catch((err) => {
+
+      // Extract artist
+      let artistName = 'Unknown Artist';
+      if (song.artists?.primary && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
+        artistName = song.artists.primary.map((artist: any) => artist.name).join(', ');
+      } else if (song.primaryArtists) {
+        artistName = song.primaryArtists;
+      } else if (song.artist) {
+        artistName = song.artist;
+      }
+
+      const track: AudioTrack = {
+        trackId: song.id,
+        assetUrl: url,
+        albumArt: artworkUrl,
+        artist: artistName,
+        album: song.album?.name || 'Unknown Album',
+        title: song.name || song.title || 'Unknown Title'
+      };
+
+      await Playlist.clearAllItems();
+      await Playlist.addItem({ item: track });
+      await Playlist.play();
+      this.isPlaying = true;
+      KeepAwake.keepAwake();
+    } catch (e) {
+      console.error('Android play failed:', e);
       this.isPlaying = false;
-      console.warn('Audio play failed:', err);
-    });
+    }
   }
 
   static pause() {
     this.intendedPlaying = false;
-    this.audio.pause();
     this.isPlaying = false;
+
+    if (this.isAndroid) {
+      Playlist.pause();
+    } else {
+      this.audio.pause();
+    }
+
     KeepAwake.allowSleep();
-    if ('mediaSession' in navigator) {
+    if (!this.isAndroid && 'mediaSession' in navigator) {
       navigator.mediaSession.playbackState = 'paused';
     }
   }
 
   static resume() {
     this.intendedPlaying = true;
-    this.audio.play();
     this.isPlaying = true;
+
+    if (this.isAndroid) {
+      Playlist.play();
+    } else {
+      this.audio.play();
+    }
+
     KeepAwake.keepAwake();
-    if ('mediaSession' in navigator) {
+    if (!this.isAndroid && 'mediaSession' in navigator) {
       navigator.mediaSession.playbackState = 'playing';
     }
   }
@@ -176,8 +257,12 @@ export class Player {
   }
 
   static seek(seconds: number) {
-    this.audio.currentTime = seconds;
-    this.updatePositionState();
+    if (this.isAndroid) {
+      Playlist.seekTo({ position: seconds });
+    } else {
+      this.audio.currentTime = seconds;
+      this.updatePositionState();
+    }
   }
 
   static autoNext() {

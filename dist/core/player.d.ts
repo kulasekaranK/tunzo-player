@@ -14,8 +14,10 @@ export declare class Player {
     private static selectedQuality;
     private static intendedPlaying;
     private static toastCtrl;
+    private static isAndroid;
     /** Initialize with playlist and quality */
     static initialize(playlist: any[], quality?: number): void;
+    private static setupAndroidPlayer;
     static setToastController(controller: ToastController): void;
     /** Setup audio element for better compatibility */
     private static setupAudioElement;
@@ -23,6 +25,7 @@ export declare class Player {
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio(): void;
     static play(song: any, index?: number): void;
+    private static playAndroid;
     static pause(): void;
     static resume(): void;
     static togglePlayPause(): void;

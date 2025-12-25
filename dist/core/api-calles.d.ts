@@ -32,10 +32,12 @@ export declare class TunzoPlayerAPI {
      * @param limit Number of results (default: 1000)
      */
     searchAlbums(query: string, limit?: number): Promise<any[]>;
+    searchArtist(query: string, limit?: number): Promise<any[]>;
     /**
      * Get album details
      * @param id Album ID
      * @param link Album URL/Link (optional but recommended if available)
      */
     getAlbumDetails(id: string, link?: string): Promise<any>;
+    getartistDetails(id: string): Promise<any>;
 }

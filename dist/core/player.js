@@ -12,29 +12,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
 const keep_awake_1 = require("@capacitor-community/keep-awake");
-const core_1 = require("@capacitor/core");
-const capacitor_plugin_playlist_1 = require("capacitor-plugin-playlist");
+const capacitor_media_session_1 = require("@capgo/capacitor-media-session");
 class Player {
     /** Initialize with playlist and quality */
     static initialize(playlist, quality = 3) {
         this.playlist = playlist;
         this.selectedQuality = quality;
-        if (this.isAndroid) {
-            this.setupAndroidPlayer();
-        }
-        else {
-            this.setupMediaSession();
-            this.setupAudioElement();
-        }
+        this.setupMediaSession();
+        this.setupAudioElement();
         this.startWatchdog();
-    }
-    static setupAndroidPlayer() {
-        capacitor_plugin_playlist_1.Playlist.addListener('status', (data) => {
-            if (data && data.status && (data.status.msgType === capacitor_plugin_playlist_1.RmxAudioStatusMessage.RMXSTATUS_COMPLETED ||
-                data.status.msgType === capacitor_plugin_playlist_1.RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED)) {
-                this.autoNext();
-            }
-        });
     }
     static setToastController(controller) {
         this.toastCtrl = controller;
@@ -61,20 +47,14 @@ class Player {
         };
         this.audio.onplaying = () => {
             this.isPlaying = true;
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'playing';
-            }
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
         };
         this.audio.onpause = () => {
             this.isPlaying = false;
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'paused';
-            }
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
         };
         this.audio.onwaiting = () => {
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'none';
-            }
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'none' });
         };
         this.audio.onerror = (e) => {
             console.error('Audio error:', this.audio.error, e);
@@ -82,24 +62,17 @@ class Player {
     }
     static startWatchdog() {
         setInterval(() => {
-            if (this.intendedPlaying && (this.isAndroid ? false : this.audio.paused) && this.currentSong) {
+            if (this.intendedPlaying && this.audio.paused && this.currentSong) {
                 console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
-                if (this.isAndroid) {
-                    capacitor_plugin_playlist_1.Playlist.play().catch(e => console.warn('Watchdog resume failed:', e));
-                }
-                else {
-                    this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
-                }
+                this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
             }
         }, 10000);
     }
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
-        if (!this.isAndroid) {
-            this.audio.src = '';
-            this.audio.load();
-            this.audio.play().catch(() => { });
-        }
+        this.audio.src = '';
+        this.audio.load();
+        this.audio.play().catch(() => { });
     }
     static play(song, index = 0) {
         var _a;
@@ -113,95 +86,31 @@ class Player {
         if (url.startsWith('http://')) {
             url = url.replace('http://', 'https://');
         }
-        if (this.isAndroid) {
-            this.playAndroid(song, url);
-        }
-        else {
-            this.audio.src = url;
-            this.audio.load();
-            this.audio.play().then(() => {
-                this.isPlaying = true;
-                this.updateMediaSessionMetadata(song);
-                keep_awake_1.KeepAwake.keepAwake(); // Keep screen/CPU awake
-                if ('mediaSession' in navigator) {
-                    navigator.mediaSession.playbackState = 'playing';
-                }
-            }).catch((err) => {
-                this.isPlaying = false;
-                console.warn('Audio play failed:', err);
-            });
-        }
-    }
-    static playAndroid(song, url) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
-            try {
-                // Extract artwork
-                let artworkUrl = '';
-                if (song.image && Array.isArray(song.image)) {
-                    const highQualityImage = song.image[song.image.length - 1];
-                    if (highQualityImage && highQualityImage.url) {
-                        artworkUrl = highQualityImage.url;
-                    }
-                }
-                // Extract artist
-                let artistName = 'Unknown Artist';
-                if (((_a = song.artists) === null || _a === void 0 ? void 0 : _a.primary) && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
-                    artistName = song.artists.primary.map((artist) => artist.name).join(', ');
-                }
-                else if (song.primaryArtists) {
-                    artistName = song.primaryArtists;
-                }
-                else if (song.artist) {
-                    artistName = song.artist;
-                }
-                const track = {
-                    trackId: song.id,
-                    assetUrl: url,
-                    albumArt: artworkUrl,
-                    artist: artistName,
-                    album: ((_b = song.album) === null || _b === void 0 ? void 0 : _b.name) || 'Unknown Album',
-                    title: song.name || song.title || 'Unknown Title'
-                };
-                yield capacitor_plugin_playlist_1.Playlist.clearAllItems();
-                yield capacitor_plugin_playlist_1.Playlist.addItem({ item: track });
-                yield capacitor_plugin_playlist_1.Playlist.play();
-                this.isPlaying = true;
-                keep_awake_1.KeepAwake.keepAwake();
-            }
-            catch (e) {
-                console.error('Android play failed:', e);
-                this.isPlaying = false;
-            }
+        this.audio.src = url;
+        this.audio.load();
+        this.audio.play().then(() => {
+            this.isPlaying = true;
+            this.updateMediaSessionMetadata(song);
+            keep_awake_1.KeepAwake.keepAwake(); // Keep screen/CPU awake
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
+        }).catch((err) => {
+            this.isPlaying = false;
+            console.warn('Audio play failed:', err);
         });
     }
     static pause() {
         this.intendedPlaying = false;
+        this.audio.pause();
         this.isPlaying = false;
-        if (this.isAndroid) {
-            capacitor_plugin_playlist_1.Playlist.pause();
-        }
-        else {
-            this.audio.pause();
-        }
         keep_awake_1.KeepAwake.allowSleep();
-        if (!this.isAndroid && 'mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'paused';
-        }
+        capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
     }
     static resume() {
         this.intendedPlaying = true;
+        this.audio.play();
         this.isPlaying = true;
-        if (this.isAndroid) {
-            capacitor_plugin_playlist_1.Playlist.play();
-        }
-        else {
-            this.audio.play();
-        }
         keep_awake_1.KeepAwake.keepAwake();
-        if (!this.isAndroid && 'mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'playing';
-        }
+        capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
     }
     static togglePlayPause() {
         if (this.isPlaying) {
@@ -234,13 +143,8 @@ class Player {
         }
     }
     static seek(seconds) {
-        if (this.isAndroid) {
-            capacitor_plugin_playlist_1.Playlist.seekTo({ position: seconds });
-        }
-        else {
-            this.audio.currentTime = seconds;
-            this.updatePositionState();
-        }
+        this.audio.currentTime = seconds;
+        this.updatePositionState();
     }
     static autoNext() {
         this.next();
@@ -318,21 +222,22 @@ class Player {
     // Native Media Session (Lock Screen Controls)
     // -------------------------------------------------------------------------
     static setupMediaSession() {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => this.resume());
-            navigator.mediaSession.setActionHandler('pause', () => this.pause());
-            navigator.mediaSession.setActionHandler('previoustrack', () => this.prev());
-            navigator.mediaSession.setActionHandler('nexttrack', () => this.next());
-            navigator.mediaSession.setActionHandler('seekto', (details) => {
-                if (details.seekTime !== undefined) {
-                    this.seek(details.seekTime);
+        return __awaiter(this, void 0, void 0, function* () {
+            yield capacitor_media_session_1.MediaSession.setActionHandler({ action: 'play' }, () => this.resume());
+            yield capacitor_media_session_1.MediaSession.setActionHandler({ action: 'pause' }, () => this.pause());
+            yield capacitor_media_session_1.MediaSession.setActionHandler({ action: 'previoustrack' }, () => this.prev());
+            yield capacitor_media_session_1.MediaSession.setActionHandler({ action: 'nexttrack' }, () => this.next());
+            yield capacitor_media_session_1.MediaSession.setActionHandler({ action: 'seekto' }, (details) => {
+                const time = details.seekTime;
+                if (typeof time === 'number') {
+                    this.seek(time);
                 }
             });
-        }
+        });
     }
     static updateMediaSessionMetadata(song) {
-        var _a, _b;
-        if ('mediaSession' in navigator) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             // Extract artwork from image array
             const artwork = [];
             if (song.image && Array.isArray(song.image)) {
@@ -364,22 +269,24 @@ class Player {
             else if (song.artist) {
                 artistName = song.artist;
             }
-            navigator.mediaSession.metadata = new MediaMetadata({
+            yield capacitor_media_session_1.MediaSession.setMetadata({
                 title: song.name || song.title || 'Unknown Title',
                 artist: artistName,
                 album: ((_b = song.album) === null || _b === void 0 ? void 0 : _b.name) || 'Unknown Album',
                 artwork: artwork.length > 0 ? artwork : undefined
             });
-        }
+        });
     }
     static updatePositionState() {
-        if ('mediaSession' in navigator && this.duration > 0) {
-            navigator.mediaSession.setPositionState({
-                duration: this.duration,
-                playbackRate: this.audio.playbackRate,
-                position: this.audio.currentTime
-            });
-        }
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.duration > 0) {
+                yield capacitor_media_session_1.MediaSession.setPositionState({
+                    duration: this.duration,
+                    playbackRate: this.audio.playbackRate,
+                    position: this.audio.currentTime
+                });
+            }
+        });
     }
 }
 exports.Player = Player;
@@ -395,4 +302,3 @@ Player.queue$ = new rxjs_1.BehaviorSubject([]);
 Player.playlist = [];
 Player.selectedQuality = 3;
 Player.intendedPlaying = false;
-Player.isAndroid = core_1.Capacitor.getPlatform() === 'android';

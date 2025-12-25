@@ -131,6 +131,23 @@ class TunzoPlayerAPI {
             }
         });
     }
+    searchArtist(query_1) {
+        return __awaiter(this, arguments, void 0, function* (query, limit = 1000) {
+            var _a;
+            try {
+                const response = yield fetch(`${this.baseUrl}/search/artists?query=${encodeURIComponent(query)}&limit=${limit}'`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const json = yield response.json();
+                return ((_a = json === null || json === void 0 ? void 0 : json.data) === null || _a === void 0 ? void 0 : _a.results) || [];
+            }
+            catch (err) {
+                console.error('error', err);
+                return [];
+            }
+        });
+    }
     /**
      * Get album details
      * @param id Album ID
@@ -143,6 +160,23 @@ class TunzoPlayerAPI {
                 if (link) {
                     url += `&link=${encodeURIComponent(link)}`;
                 }
+                const response = yield fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const json = yield response.json();
+                return (json === null || json === void 0 ? void 0 : json.data) || null;
+            }
+            catch (error) {
+                console.error("TunzoPlayerAPI Error (getAlbumDetails):", error);
+                return null;
+            }
+        });
+    }
+    getartistDetails(id) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                let url = `${this.baseUrl}/artists/${id}/songs?page=0&sortBy=popularity&sortOrder=desc`;
                 const response = yield fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

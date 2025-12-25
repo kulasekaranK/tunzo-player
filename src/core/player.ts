@@ -1,5 +1,4 @@
 import { BehaviorSubject } from 'rxjs';
-import { KeepAwake } from '@capacitor-community/keep-awake';
 import { ToastController } from '@ionic/angular/standalone';
 import { MediaSession } from '@capgo/capacitor-media-session';
 
@@ -15,7 +14,6 @@ export class Player {
   static queue$ = new BehaviorSubject<any[]>([]);
   private static playlist: any[] = [];
   private static selectedQuality = 3;
-  private static intendedPlaying = false;
   private static toastCtrl: ToastController;
 
   /** Initialize with playlist and quality */
@@ -24,7 +22,6 @@ export class Player {
     this.selectedQuality = quality;
     this.setupMediaSession();
     this.setupAudioElement();
-    this.startWatchdog();
   }
 
   static setToastController(controller: ToastController) {
@@ -71,16 +68,9 @@ export class Player {
 
     this.audio.onerror = (e) => {
       console.error('Audio error:', this.audio.error, e);
+      this.isPlaying = false;
+      MediaSession.setPlaybackState({ playbackState: 'none' });
     };
-  }
-
-  private static startWatchdog() {
-    setInterval(() => {
-      if (this.intendedPlaying && this.audio.paused && this.currentSong) {
-        console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
-        this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
-      }
-    }, 10000);
   }
 
   /** Call this once on user gesture to unlock audio in WebView */
@@ -90,10 +80,8 @@ export class Player {
     this.audio.play().catch(() => { });
   }
 
-  static play(song: any, index: number = 0) {
+  static async play(song: any, index: number = 0) {
     if (!song || !song.downloadUrl) return;
-
-    this.intendedPlaying = true;
 
     this.currentSong = song;
     this.currentIndex = index;
@@ -105,34 +93,39 @@ export class Player {
       url = url.replace('http://', 'https://');
     }
 
-    this.audio.src = url;
-    this.audio.load();
+    // Update metadata before playing to ensure UI is ready
+    await this.updateMediaSessionMetadata(song);
 
-    this.audio.play().then(() => {
+    try {
+      this.audio.src = url;
+      this.audio.load();
+      await this.audio.play();
       this.isPlaying = true;
-      this.updateMediaSessionMetadata(song);
-      KeepAwake.keepAwake(); // Keep screen/CPU awake
-      MediaSession.setPlaybackState({ playbackState: 'playing' });
-    }).catch((err) => {
-      this.isPlaying = false;
-      console.warn('Audio play failed:', err);
-    });
+      await MediaSession.setPlaybackState({ playbackState: 'playing' });
+    } catch (err: any) {
+      // Ignore AbortError (happens when play is interrupted by another play call)
+      if (err.name !== 'AbortError') {
+        console.warn('Audio play failed:', err);
+        this.isPlaying = false;
+        await MediaSession.setPlaybackState({ playbackState: 'paused' });
+      }
+    }
   }
 
-  static pause() {
-    this.intendedPlaying = false;
+  static async pause() {
     this.audio.pause();
     this.isPlaying = false;
-    KeepAwake.allowSleep();
-    MediaSession.setPlaybackState({ playbackState: 'paused' });
+    await MediaSession.setPlaybackState({ playbackState: 'paused' });
   }
 
-  static resume() {
-    this.intendedPlaying = true;
-    this.audio.play();
-    this.isPlaying = true;
-    KeepAwake.keepAwake();
-    MediaSession.setPlaybackState({ playbackState: 'playing' });
+  static async resume() {
+    try {
+      await this.audio.play();
+      this.isPlaying = true;
+      await MediaSession.setPlaybackState({ playbackState: 'playing' });
+    } catch (err) {
+      console.warn('Resume failed:', err);
+    }
   }
 
   static togglePlayPause() {
@@ -154,7 +147,9 @@ export class Player {
     } else if (this.currentIndex < this.playlist.length - 1) {
       this.play(this.playlist[this.currentIndex + 1], this.currentIndex + 1);
     } else {
-      this.intendedPlaying = false;
+      // End of playlist
+      this.isPlaying = false;
+      MediaSession.setPlaybackState({ playbackState: 'paused' });
     }
   }
 

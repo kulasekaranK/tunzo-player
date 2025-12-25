@@ -1,8 +1,7 @@
 import { BehaviorSubject } from 'rxjs';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { ToastController } from '@ionic/angular/standalone';
-import { Capacitor } from '@capacitor/core';
-import { Playlist, AudioTrack, RmxAudioStatusMessage } from 'capacitor-plugin-playlist';
+import { MediaSession } from '@capgo/capacitor-media-session';
 
 export class Player {
   private static audio = new Audio();
@@ -18,30 +17,14 @@ export class Player {
   private static selectedQuality = 3;
   private static intendedPlaying = false;
   private static toastCtrl: ToastController;
-  private static isAndroid = Capacitor.getPlatform() === 'android';
 
   /** Initialize with playlist and quality */
   static initialize(playlist: any[], quality = 3) {
     this.playlist = playlist;
     this.selectedQuality = quality;
-    if (this.isAndroid) {
-      this.setupAndroidPlayer();
-    } else {
-      this.setupMediaSession();
-      this.setupAudioElement();
-    }
+    this.setupMediaSession();
+    this.setupAudioElement();
     this.startWatchdog();
-  }
-
-  private static setupAndroidPlayer() {
-    Playlist.addListener('status', (data) => {
-      if (data && data.status && (
-        data.status.msgType === RmxAudioStatusMessage.RMXSTATUS_COMPLETED ||
-        data.status.msgType === RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED
-      )) {
-        this.autoNext();
-      }
-    });
   }
 
   static setToastController(controller: ToastController) {
@@ -74,22 +57,16 @@ export class Player {
 
     this.audio.onplaying = () => {
       this.isPlaying = true;
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = 'playing';
-      }
+      MediaSession.setPlaybackState({ playbackState: 'playing' });
     };
 
     this.audio.onpause = () => {
       this.isPlaying = false;
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = 'paused';
-      }
+      MediaSession.setPlaybackState({ playbackState: 'paused' });
     };
 
     this.audio.onwaiting = () => {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = 'none';
-      }
+      MediaSession.setPlaybackState({ playbackState: 'none' });
     };
 
     this.audio.onerror = (e) => {
@@ -99,24 +76,18 @@ export class Player {
 
   private static startWatchdog() {
     setInterval(() => {
-      if (this.intendedPlaying && (this.isAndroid ? false : this.audio.paused) && this.currentSong) {
+      if (this.intendedPlaying && this.audio.paused && this.currentSong) {
         console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
-        if (this.isAndroid) {
-          Playlist.play().catch(e => console.warn('Watchdog resume failed:', e));
-        } else {
-          this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
-        }
+        this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
       }
     }, 10000);
   }
 
   /** Call this once on user gesture to unlock audio in WebView */
   static unlockAudio() {
-    if (!this.isAndroid) {
-      this.audio.src = '';
-      this.audio.load();
-      this.audio.play().catch(() => { });
-    }
+    this.audio.src = '';
+    this.audio.load();
+    this.audio.play().catch(() => { });
   }
 
   static play(song: any, index: number = 0) {
@@ -134,97 +105,34 @@ export class Player {
       url = url.replace('http://', 'https://');
     }
 
-    if (this.isAndroid) {
-      this.playAndroid(song, url);
-    } else {
-      this.audio.src = url;
-      this.audio.load();
+    this.audio.src = url;
+    this.audio.load();
 
-      this.audio.play().then(() => {
-        this.isPlaying = true;
-        this.updateMediaSessionMetadata(song);
-        KeepAwake.keepAwake(); // Keep screen/CPU awake
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'playing';
-        }
-      }).catch((err) => {
-        this.isPlaying = false;
-        console.warn('Audio play failed:', err);
-      });
-    }
-  }
-
-  private static async playAndroid(song: any, url: string) {
-    try {
-      // Extract artwork
-      let artworkUrl = '';
-      if (song.image && Array.isArray(song.image)) {
-        const highQualityImage = song.image[song.image.length - 1];
-        if (highQualityImage && highQualityImage.url) {
-          artworkUrl = highQualityImage.url;
-        }
-      }
-
-      // Extract artist
-      let artistName = 'Unknown Artist';
-      if (song.artists?.primary && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
-        artistName = song.artists.primary.map((artist: any) => artist.name).join(', ');
-      } else if (song.primaryArtists) {
-        artistName = song.primaryArtists;
-      } else if (song.artist) {
-        artistName = song.artist;
-      }
-
-      const track: AudioTrack = {
-        trackId: song.id,
-        assetUrl: url,
-        albumArt: artworkUrl,
-        artist: artistName,
-        album: song.album?.name || 'Unknown Album',
-        title: song.name || song.title || 'Unknown Title'
-      };
-
-      await Playlist.clearAllItems();
-      await Playlist.addItem({ item: track });
-      await Playlist.play();
+    this.audio.play().then(() => {
       this.isPlaying = true;
-      KeepAwake.keepAwake();
-    } catch (e) {
-      console.error('Android play failed:', e);
+      this.updateMediaSessionMetadata(song);
+      KeepAwake.keepAwake(); // Keep screen/CPU awake
+      MediaSession.setPlaybackState({ playbackState: 'playing' });
+    }).catch((err) => {
       this.isPlaying = false;
-    }
+      console.warn('Audio play failed:', err);
+    });
   }
 
   static pause() {
     this.intendedPlaying = false;
+    this.audio.pause();
     this.isPlaying = false;
-
-    if (this.isAndroid) {
-      Playlist.pause();
-    } else {
-      this.audio.pause();
-    }
-
     KeepAwake.allowSleep();
-    if (!this.isAndroid && 'mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = 'paused';
-    }
+    MediaSession.setPlaybackState({ playbackState: 'paused' });
   }
 
   static resume() {
     this.intendedPlaying = true;
+    this.audio.play();
     this.isPlaying = true;
-
-    if (this.isAndroid) {
-      Playlist.play();
-    } else {
-      this.audio.play();
-    }
-
     KeepAwake.keepAwake();
-    if (!this.isAndroid && 'mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = 'playing';
-    }
+    MediaSession.setPlaybackState({ playbackState: 'playing' });
   }
 
   static togglePlayPause() {
@@ -257,12 +165,8 @@ export class Player {
   }
 
   static seek(seconds: number) {
-    if (this.isAndroid) {
-      Playlist.seekTo({ position: seconds });
-    } else {
-      this.audio.currentTime = seconds;
-      this.updatePositionState();
-    }
+    this.audio.currentTime = seconds;
+    this.updatePositionState();
   }
 
   static autoNext() {
@@ -354,65 +258,62 @@ export class Player {
   // Native Media Session (Lock Screen Controls)
   // -------------------------------------------------------------------------
 
-  private static setupMediaSession() {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', () => this.resume());
-      navigator.mediaSession.setActionHandler('pause', () => this.pause());
-      navigator.mediaSession.setActionHandler('previoustrack', () => this.prev());
-      navigator.mediaSession.setActionHandler('nexttrack', () => this.next());
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined) {
-          this.seek(details.seekTime);
-        }
-      });
-    }
+  private static async setupMediaSession() {
+    await MediaSession.setActionHandler({ action: 'play' }, () => this.resume());
+    await MediaSession.setActionHandler({ action: 'pause' }, () => this.pause());
+    await MediaSession.setActionHandler({ action: 'previoustrack' }, () => this.prev());
+    await MediaSession.setActionHandler({ action: 'nexttrack' }, () => this.next());
+    await MediaSession.setActionHandler({ action: 'seekto' }, (details) => {
+      const time = details.seekTime;
+      if (typeof time === 'number') {
+        this.seek(time);
+      }
+    });
   }
 
-  private static updateMediaSessionMetadata(song: any) {
-    if ('mediaSession' in navigator) {
-      // Extract artwork from image array
-      const artwork = [];
-      if (song.image && Array.isArray(song.image)) {
-        // Get the highest quality image (last in array, usually 500x500)
-        const highQualityImage = song.image[song.image.length - 1];
-        if (highQualityImage && highQualityImage.url) {
-          let src = highQualityImage.url;
-          if (src.startsWith('http://')) {
-            src = src.replace('http://', 'https://');
-          }
-          // Skip placeholder images
-          if (!src.includes('_i/share-image')) {
-            artwork.push({
-              src,
-              sizes: highQualityImage.quality || '500x500',
-              type: 'image/jpeg'
-            });
-          }
+  private static async updateMediaSessionMetadata(song: any) {
+    // Extract artwork from image array
+    const artwork = [];
+    if (song.image && Array.isArray(song.image)) {
+      // Get the highest quality image (last in array, usually 500x500)
+      const highQualityImage = song.image[song.image.length - 1];
+      if (highQualityImage && highQualityImage.url) {
+        let src = highQualityImage.url;
+        if (src.startsWith('http://')) {
+          src = src.replace('http://', 'https://');
+        }
+        // Skip placeholder images
+        if (!src.includes('_i/share-image')) {
+          artwork.push({
+            src,
+            sizes: highQualityImage.quality || '500x500',
+            type: 'image/jpeg'
+          });
         }
       }
-
-      // Extract artist name from artists.primary array
-      let artistName = 'Unknown Artist';
-      if (song.artists?.primary && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
-        artistName = song.artists.primary.map((artist: any) => artist.name).join(', ');
-      } else if (song.primaryArtists) {
-        artistName = song.primaryArtists;
-      } else if (song.artist) {
-        artistName = song.artist;
-      }
-
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: song.name || song.title || 'Unknown Title',
-        artist: artistName,
-        album: song.album?.name || 'Unknown Album',
-        artwork: artwork.length > 0 ? artwork : undefined
-      });
     }
+
+    // Extract artist name from artists.primary array
+    let artistName = 'Unknown Artist';
+    if (song.artists?.primary && Array.isArray(song.artists.primary) && song.artists.primary.length > 0) {
+      artistName = song.artists.primary.map((artist: any) => artist.name).join(', ');
+    } else if (song.primaryArtists) {
+      artistName = song.primaryArtists;
+    } else if (song.artist) {
+      artistName = song.artist;
+    }
+
+    await MediaSession.setMetadata({
+      title: song.name || song.title || 'Unknown Title',
+      artist: artistName,
+      album: song.album?.name || 'Unknown Album',
+      artwork: artwork.length > 0 ? artwork : undefined
+    });
   }
 
-  private static updatePositionState() {
-    if ('mediaSession' in navigator && this.duration > 0) {
-      navigator.mediaSession.setPositionState({
+  private static async updatePositionState() {
+    if (this.duration > 0) {
+      await MediaSession.setPositionState({
         duration: this.duration,
         playbackRate: this.audio.playbackRate,
         position: this.audio.currentTime

@@ -124,6 +124,24 @@ export class TunzoPlayerAPI {
     }
   }
 
+  async searchArtist(query: string, limit: number = 1000): Promise<any[]> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/search/artists?query=${encodeURIComponent(query)}&limit=${limit}'`
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const json = await response.json();
+      return json?.data?.results || [];
+    } catch (err) {
+      console.error('error', err);
+      return [];
+    }
+  }
+
   /**
    * Get album details
    * @param id Album ID
@@ -135,6 +153,25 @@ export class TunzoPlayerAPI {
       if (link) {
         url += `&link=${encodeURIComponent(link)}`;
       }
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const json = await response.json();
+      return json?.data || null;
+    } catch (error) {
+      console.error("TunzoPlayerAPI Error (getAlbumDetails):", error);
+      return null;
+    }
+  }
+
+  async getartistDetails(id: string): Promise<any> {
+    try {
+      let url = `${this.baseUrl}/artists/${id}/songs?page=0&sortBy=popularity&sortOrder=desc`;
+
 
       const response = await fetch(url);
 

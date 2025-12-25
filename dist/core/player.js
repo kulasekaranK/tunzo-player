@@ -11,7 +11,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Player = void 0;
 const rxjs_1 = require("rxjs");
-const keep_awake_1 = require("@capacitor-community/keep-awake");
 const capacitor_media_session_1 = require("@capgo/capacitor-media-session");
 class Player {
     /** Initialize with playlist and quality */
@@ -20,7 +19,6 @@ class Player {
         this.selectedQuality = quality;
         this.setupMediaSession();
         this.setupAudioElement();
-        this.startWatchdog();
     }
     static setToastController(controller) {
         this.toastCtrl = controller;
@@ -58,15 +56,9 @@ class Player {
         };
         this.audio.onerror = (e) => {
             console.error('Audio error:', this.audio.error, e);
+            this.isPlaying = false;
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'none' });
         };
-    }
-    static startWatchdog() {
-        setInterval(() => {
-            if (this.intendedPlaying && this.audio.paused && this.currentSong) {
-                console.log('Watchdog: Audio paused unexpectedly. Attempting to resume...');
-                this.audio.play().catch(e => console.warn('Watchdog resume failed:', e));
-            }
-        }, 10000);
     }
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio() {
@@ -74,43 +66,55 @@ class Player {
         this.audio.load();
         this.audio.play().catch(() => { });
     }
-    static play(song, index = 0) {
-        var _a;
-        if (!song || !song.downloadUrl)
-            return;
-        this.intendedPlaying = true;
-        this.currentSong = song;
-        this.currentIndex = index;
-        let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
-        // 🚀 Auto-convert http → https
-        if (url.startsWith('http://')) {
-            url = url.replace('http://', 'https://');
-        }
-        this.audio.src = url;
-        this.audio.load();
-        this.audio.play().then(() => {
-            this.isPlaying = true;
-            this.updateMediaSessionMetadata(song);
-            keep_awake_1.KeepAwake.keepAwake(); // Keep screen/CPU awake
-            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
-        }).catch((err) => {
-            this.isPlaying = false;
-            console.warn('Audio play failed:', err);
+    static play(song_1) {
+        return __awaiter(this, arguments, void 0, function* (song, index = 0) {
+            var _a;
+            if (!song || !song.downloadUrl)
+                return;
+            this.currentSong = song;
+            this.currentIndex = index;
+            let url = ((_a = song.downloadUrl[this.selectedQuality]) === null || _a === void 0 ? void 0 : _a.url) || '';
+            // 🚀 Auto-convert http → https
+            if (url.startsWith('http://')) {
+                url = url.replace('http://', 'https://');
+            }
+            // Update metadata before playing to ensure UI is ready
+            yield this.updateMediaSessionMetadata(song);
+            try {
+                this.audio.src = url;
+                this.audio.load();
+                yield this.audio.play();
+                this.isPlaying = true;
+                yield capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
+            }
+            catch (err) {
+                // Ignore AbortError (happens when play is interrupted by another play call)
+                if (err.name !== 'AbortError') {
+                    console.warn('Audio play failed:', err);
+                    this.isPlaying = false;
+                    yield capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
+                }
+            }
         });
     }
     static pause() {
-        this.intendedPlaying = false;
-        this.audio.pause();
-        this.isPlaying = false;
-        keep_awake_1.KeepAwake.allowSleep();
-        capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
+        return __awaiter(this, void 0, void 0, function* () {
+            this.audio.pause();
+            this.isPlaying = false;
+            yield capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
+        });
     }
     static resume() {
-        this.intendedPlaying = true;
-        this.audio.play();
-        this.isPlaying = true;
-        keep_awake_1.KeepAwake.keepAwake();
-        capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                yield this.audio.play();
+                this.isPlaying = true;
+                yield capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'playing' });
+            }
+            catch (err) {
+                console.warn('Resume failed:', err);
+            }
+        });
     }
     static togglePlayPause() {
         if (this.isPlaying) {
@@ -134,7 +138,9 @@ class Player {
             this.play(this.playlist[this.currentIndex + 1], this.currentIndex + 1);
         }
         else {
-            this.intendedPlaying = false;
+            // End of playlist
+            this.isPlaying = false;
+            capacitor_media_session_1.MediaSession.setPlaybackState({ playbackState: 'paused' });
         }
     }
     static prev() {
@@ -301,4 +307,3 @@ Player.queue = [];
 Player.queue$ = new rxjs_1.BehaviorSubject([]);
 Player.playlist = [];
 Player.selectedQuality = 3;
-Player.intendedPlaying = false;

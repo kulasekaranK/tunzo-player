@@ -12,19 +12,17 @@ export declare class Player {
     static queue$: BehaviorSubject<any[]>;
     private static playlist;
     private static selectedQuality;
-    private static intendedPlaying;
     private static toastCtrl;
     /** Initialize with playlist and quality */
     static initialize(playlist: any[], quality?: number): void;
     static setToastController(controller: ToastController): void;
     /** Setup audio element for better compatibility */
     private static setupAudioElement;
-    private static startWatchdog;
     /** Call this once on user gesture to unlock audio in WebView */
     static unlockAudio(): void;
-    static play(song: any, index?: number): void;
-    static pause(): void;
-    static resume(): void;
+    static play(song: any, index?: number): Promise<void>;
+    static pause(): Promise<void>;
+    static resume(): Promise<void>;
     static togglePlayPause(): void;
     static next(): void;
     static prev(): void;
